@@ -9,6 +9,7 @@ import tarfile
 from six.moves import urllib
 import pandas as pd
 import colorsys
+import hashlib
 
 # to make this notebook's output stable across runs
 np.random.seed(42)
@@ -43,6 +44,21 @@ def fetch_housing_data(housing_url=HOUSING_URL, housing_path=HOUSING_PATH):
     housing_tgz.close()
 
 
+def test_set_check(identifier, test_ratio, hash):
+    return hash(np.int64(identifier)).digest()[-1] < 256 * test_ratio
+
+def split_train_test_by_id(data, test_ration, id_column, hash=hashlib.md5):
+    ids = data[id_column]
+    in_test_set = ids.apply(lambda id: test_set_check(id_, test_ratio, hash))
+    return data.loc[~in_test_set], data.loc[in_test_set]
+
+def split_train_set(data, test_ratio):
+    shuffled_indices = np.random.permutation(len(data))
+    test_set_size = int(len(data) * test_ratio)
+    test_indices = shuffled_indices[:test_set_size]
+    train_indices = shuffled_indices[test_set_size:]
+    return data.iloc[train_indices], data.iloc[test_indices]
+
 def save_fig(fig_id, tight_layout=True):
     path = os.path.join(POJECT_ROOT_DIR, "images", CHAPTER_ID, fig_id + "png")
     print("Saving figure", fig_id)
@@ -68,8 +84,16 @@ def main():
     print("\n** housing decribe ** :")
     print(housing.describe())
     housing.hist(bins=50, figsize=(20,15))
-    plt.show()
+    #plt.show()
     print ("stop program")
+
+    print("\n\n** spitting train and test data **\n")
+    train_set, test_set = split_train_set(housing, 0.2)
+    print("train : %d, test : %d" % (len(train_set), len(test_set)))
+    print("the fifth median income : %f, should be 4.036800" % train_set["median_income"][5])
+
+    housing_with_id = housing.reset_index() # adds an index column
+    train_set, test_set = split_train_test_by_id(housing_with_id, 0.2, "index")
 
 if __name__ == "__main__":
     main()
